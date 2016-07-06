@@ -33,16 +33,19 @@ app.use(passport.session());
 passport.serializeUser(function(user, done) {
   // Reading or generating a publicKey for the user
 
-  var cachedUser = storage.getItem('user_' + user.id);
+  //var cachedUser = storage.getItem('user_' + user.id);
 
-  if (cachedUser) {
-    console.log('==== serializeUser done');
-    done(null, user.id);
+  // if (cachedUser) {
+  //   console.log('==== serializeUser done');
+  //   done(null, user.id);
 
-  } else { // set in the local storage for the first time
-    console.log('==== new data');
-    storage.setItem('user_' + user.id, user);
-  }
+  // } else { // set in the local storage for the first time
+  //   console.log('==== new user');
+  //   storage.setItem('user_' + user.id, user);
+  // }
+
+  storage.setItem('user_' + user.id, user);
+  done(null, user.id);
 });
 
 passport.deserializeUser(function(id, done) {
@@ -54,6 +57,7 @@ passport.use(new lyftStrategy({
     clientSecret: config.auth.lyft.client_secret,
     //callbackURL: 'https://pubnub-auth-chat.herokuapp.com/callback'
     callbackURL: 'http://localhost:3000/callback',
+    profileFields: ['id'],
     state: true // without it, auth url fails and you don't get the auth page
   },
 
@@ -92,7 +96,7 @@ app.get('/user/:id', function (req, res) {
 });
 
 app.get('/login', 
-  passport.authenticate('lyft', { scope: ['profile']})
+  passport.authenticate('lyft', { scope: ['public', 'profile']})
   /*
   https://www.lyft.com/oauth/authorize?client_id=<client_id>&response_type=code&state=<state>&scope=public&redirect_uri=https:%2F%2Flocalhost%2Foauth2%2Fcallback
   */

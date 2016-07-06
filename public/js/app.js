@@ -11,9 +11,11 @@
       action = document.getElementById('action'),
       send = document.getElementById('send');
 
-  var channel = 'chat-demo';
+  var location = getCurrentLocation();
+  var lat;
+  var lng;
 
-  var keysCache = {};
+  var channel = 'lyft-chat';
   
   var pubnub = PUBNUB.init({
     subscribe_key: 'sub-c-00ac33a4-3e28-11e6-971e-02ee2ddab7fe',
@@ -27,40 +29,26 @@
 
     console.log(message);
 
-    var html = '';
+    var content = '<p><strong>' +  message.userid+ ': </strong>';
 
-    if ('userid' in message ) {
-
-      //html = '<p><img src="'+ message.userid.avatar +'" class="avatar"><strong>' +  keysCache[message.userid].username + '</strong><br><span>' + message.text + '</span></p>';
-
-      //output.innerHTML = html + output.innerHTML;
-
-    } else {
-      var xhr = new XMLHttpRequest();
-      xhr.open('GET', '/user/' + message.userid, true);
-      xhr.onreadystatechange = function() {
-        if (xhr.readyState === 4) {
-          var res = JSON.parse(xhr.responseText);
-
-          keysCache[message.userid] = {
-            // 'publicKey': res.publicKey,
-            // 'username': res.username,
-            // 'displayName': res.displayName,
-            // 'avatar': res.avatar_url,
-            'id': res.id
-          }
-          displayOutput(message);
-        }
-      };
-      xhr.send(null); 
+    if (message.text) {
+      content += '<span>' + message.text + '</span></p>';
     }
+    if (message.image) {
+      content += '<img src="' + message.image + '">'
+    }
+    if (message.map) { 
+      content += '<img src="' + message.map + '">'
+    }
+
+    output.innerHTML = content + output.innerHTML;
   }
 
   function getHistory() {
     pubnub.history({
-      channel  : channel,
-      count    : 30,
-      callback : function(messages) {
+      channel: channel,
+      count: 30,
+      callback: function(messages) {
         messages[0].forEach(function(m){ 
           displayOutput(m);
         });
@@ -99,6 +87,7 @@
 
   function post() {
     var safeText = input.value.replace(/\&/g, '&amp;').replace( /</g,  '&lt;').replace(/>/g,  '&gt;');
+    console.log(safeText);
 
     pubnub.publish({
       channel: channel,
@@ -108,8 +97,7 @@
       },
       callback: function() {
         if (safeText.toLowerCase().indexOf('/lyft') > -1) {
-          console.log(safeText.toLowerCase());
-          var query = safeText.replace('/lyft ', '').split(' ').join('+');
+          var query = safeText.replace('/lyft', 'Hailing Lyft...');
           
           hailLyft(query);
         }
@@ -118,22 +106,78 @@
     });
   }
 
+  function getCurrentLocation() {
+    console.log('Getting your location...');
+    if ('geolocation' in navigator) {
+     navigator.geolocation.getCurrentPosition(function(position) {
+        console.log(position.coords.latitude, position.coords.longitude );
+        lat = position.coords.latitude;
+        lng = position.coords.longitude;
+     });
+    }
+  }
+
+  function getMapUrl(array) {
+    // https://maps.google.com/maps/api/staticmap
+    // ?center=Brooklyn+Bridge,New+York,NY&zoom=13&size=600x300
+    // &maptype=roadmap&markers=color:blue%7Clabel:S%7C40.702147,-74.015794
+    // &markers=color:green%7Clabel:G%7C40.711614,-74.012318
+    // &markers=color:red%7Clabel:C%7C40.718217,-73.998284
+
+    return 'https://maps.google.com/maps/api/staticmap?zoom=14&size=560x300&center='+array[0]+'&markers=label:1%7C'+array[1]+'&markers=label:1%7C'+array[1]+'&markers=label:2%7C'+array[2]+'&markers=label:3%7C'+array[3]+'&markers=label:4%7C'+array[4];
+  }
+
   // Lyft API --- TO DO
   function hailLyft(q) {
-    console.log(q);
-    var url = '';
+
+    console.log('Searching nearby Lyft drivers...');
+
+    var url = 'https://api.lyft.com/v1/drivers';
+    var params = 'lat='+lat+'&lng='+lng;
+    var auth = 'Bearer '+user.accessToken;
+
 
     var xhr = new XMLHttpRequest();
-    xhr.open('GET', url);
+    xhr.open('GET', url+'?'+params);
+    xhr.setRequestHeader('Authorization', auth);
+
     xhr.onload = function() {
+      console.log(xhr.status);
+      if(xhr.status !== 200) return;
+
+      var arr = [];
+      arr[0] = lat + ',' + lng; // current user location
+
       var json = JSON.parse(xhr.response);
-      //
-      // get a car
+      var results = json.nearby_drivers;
+      console.log(json);
+
+      results.forEach(function(t){ 
+        if(t.ride_type === 'lyft') {
+          t.drivers.forEach(function(d){
+            arr.push(d.locations[0].lat + ',' + d.locations[0].lng);
+          });
+          var mapUrl = getMapUrl(arr);
+          console.log(mapUrl);
+          publishLyftStatus(mapUrl);
+        }
+      });
     };
     xhr.onerror = function(e) {
       console.log(e);
     };
     xhr.send();
+  }
+
+  function publishLyftStatus(data) {
+    pubnub.publish({
+      channel: channel,
+      message: {
+        userid: user.id,
+        text: 'Nearby drivers...',
+        map: data
+      }
+    });
   }
 
   input.addEventListener('keyup', function(e) {
