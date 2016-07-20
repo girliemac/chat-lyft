@@ -6,7 +6,7 @@ The simple chat app to test the passport-lyft OAuth 2 module for Node.js I wrote
 
 ![screenshot](public/images/screenshot.png)
 
-Login with your Lyft credential and just chat. When you use `/lyft`command, it returns you a static map with nearby Lyft (not Line or Plus, because I simply didn't implement for now) drivers.
+Login with your Lyft credential and just chat. When you use `/lyft`command, it returns you Lyft info- e.g. `/lyft drivers` to get a static map with nearby Lyft drivers (but not Line or Plus, because I simply didn't implement for now), or `/lyft eta` for the estimated time it will take for the nearest driver to reach the user.
 
 
 
@@ -20,9 +20,20 @@ $ npm install
 ```
 Now you should get all dependencies in **node_modules**.
 
-But one of the module (*passport-lyft* for Lyft OAuth)is not yet available in npm, so [grab the lib from my repo](https://github.com/girliemac/passport-lyft), put the **lib** folder in your **node_modules** and rename it to *passport-lyft*.
+Then, creating a **config.js** with your Lyft API keys, and locate it in the **/server** :
 
-Then just run node:
+```javascript
+module.exports = {
+  auth: {
+    lyft: {
+      client_id: '4KV2E2...',
+      client_secret: 'hnfALYzEq...',
+    },
+  }
+};
+```
+
+Finally, run the app:
 
 ```bash
 $ node server/index.js
