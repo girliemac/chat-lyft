@@ -7,7 +7,6 @@ var ejs = require('ejs');
 var util = require('util');
 var passport = require('passport');
 var lyftStrategy = require('passport-lyft').Strategy;
-//var ecc = require('eccjs');
 
 var storage = require('node-persist');
 storage.initSync();
@@ -31,19 +30,6 @@ app.use(passport.session());
 
 
 passport.serializeUser(function(user, done) {
-  // Reading or generating a publicKey for the user
-
-  //var cachedUser = storage.getItem('user_' + user.id);
-
-  // if (cachedUser) {
-  //   console.log('==== serializeUser done');
-  //   done(null, user.id);
-
-  // } else { // set in the local storage for the first time
-  //   console.log('==== new user');
-  //   storage.setItem('user_' + user.id, user);
-  // }
-
   storage.setItem('user_' + user.id, user);
   done(null, user.id);
 });
@@ -55,7 +41,6 @@ passport.deserializeUser(function(id, done) {
 passport.use(new lyftStrategy({
     clientID: config.auth.lyft.client_id,
     clientSecret: config.auth.lyft.client_secret,
-    //callbackURL: 'https://pubnub-auth-chat.herokuapp.com/callback'
     callbackURL: 'http://localhost:3000/callback',
     profileFields: ['id'],
     state: true // without it, auth url fails and you don't get the auth page

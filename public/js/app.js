@@ -37,9 +37,6 @@
     if (message.image) {
       content += '<img src="' + message.image + '">'
     }
-    if (message.map) { 
-      content += '<img src="' + message.map + '">'
-    }
 
     output.innerHTML = content + output.innerHTML;
   }
@@ -96,10 +93,13 @@
         userid: user.id 
       },
       callback: function() {
-        if (safeText.toLowerCase().indexOf('/lyft') > -1) {
-          var query = safeText.replace('/lyft', 'Hailing Lyft...');
-          
-          hailLyft(query);
+        var q = safeText.toLowerCase();
+        
+        if (q.indexOf('/lyft eta') > -1) {
+          showEta();
+        }
+        else if (q.indexOf('/lyft') > -1) {
+          showDrivers();
         }
         input.value = '';
       }
@@ -117,51 +117,21 @@
     }
   }
 
-  function getMapUrl(array) {
-    // https://maps.google.com/maps/api/staticmap
-    // ?center=Brooklyn+Bridge,New+York,NY&zoom=13&size=600x300
-    // &maptype=roadmap&markers=color:blue%7Clabel:S%7C40.702147,-74.015794
-    // &markers=color:green%7Clabel:G%7C40.711614,-74.012318
-    // &markers=color:red%7Clabel:C%7C40.718217,-73.998284
-
-    return 'https://maps.google.com/maps/api/staticmap?zoom=14&size=560x300&center='+array[0]+'&markers=label:1%7C'+array[1]+'&markers=label:1%7C'+array[1]+'&markers=label:2%7C'+array[2]+'&markers=label:3%7C'+array[3]+'&markers=label:4%7C'+array[4];
-  }
-
-  // Lyft API --- TO DO
-  function hailLyft(q) {
-
-    console.log('Searching nearby Lyft drivers...');
-
-    var url = 'https://api.lyft.com/v1/drivers';
-    var params = 'lat='+lat+'&lng='+lng;
+  function fetchJson(url, callback) {
     var auth = 'Bearer '+user.accessToken;
 
-
     var xhr = new XMLHttpRequest();
-    xhr.open('GET', url+'?'+params);
+    xhr.open('GET', url);
     xhr.setRequestHeader('Authorization', auth);
 
     xhr.onload = function() {
       console.log(xhr.status);
       if(xhr.status !== 200) return;
 
-      var arr = [];
-      arr[0] = lat + ',' + lng; // current user location
-
       var json = JSON.parse(xhr.response);
-      var results = json.nearby_drivers;
       console.log(json);
-
-      results.forEach(function(t){ 
-        if(t.ride_type === 'lyft') {
-          t.drivers.forEach(function(d){
-            arr.push(d.locations[0].lat + ',' + d.locations[0].lng);
-          });
-          var mapUrl = getMapUrl(arr);
-          console.log(mapUrl);
-          publishLyftStatus(mapUrl);
-        }
-      });
+      callback(json);
+      
     };
     xhr.onerror = function(e) {
       console.log(e);
@@ -169,13 +139,66 @@
     xhr.send();
   }
 
-  function publishLyftStatus(data) {
+  // Lyft APIs
+
+  function showDrivers() {
+    var api = 'https://api.lyft.com/v1/drivers';
+    var params = 'lat='+lat+'&lng='+lng;
+    var url = api+'?'+params;
+
+    fetchJson(url, function(json){
+      var results = json.nearby_drivers;
+
+      var arr = [];
+      arr[0] = lat + ',' + lng; // current user location
+
+      // To Do - show all Lyft types (e.g. Line)
+      results.forEach(function(t){ 
+        if(t.ride_type === 'lyft') {
+          t.drivers.forEach(function(d){
+            arr.push(d.locations[0].lat + ',' + d.locations[0].lng);
+          });
+          var mapUrl = getDriversMapUrl(arr);
+          publishLyftStatus('Nearby Lyft drivers...', mapUrl);
+        }
+      });
+    });
+  }
+
+  function getDriversMapUrl(array) {
+    // https://maps.google.com/maps/api/staticmap
+    // ?center=Brooklyn+Bridge,New+York,NY&zoom=13&size=600x300
+    // &maptype=roadmap&markers=color:blue%7Clabel:S%7C40.702147,-74.015794
+    // &markers=color:green%7Clabel:G%7C40.711614,-74.012318
+    // &markers=color:red%7Clabel:C%7C40.718217,-73.998284
+
+    return 'https://maps.google.com/maps/api/staticmap?zoom=15&size=560x300&center='+array[0]+'&markers=label:1%7C'+array[1]+'&markers=label:1%7C'+array[1]+'&markers=label:2%7C'+array[2]+'&markers=label:3%7C'+array[3]+'&markers=label:4%7C'+array[4]+'&markers=label:5%7C'+array[5];
+  }
+
+  function showEta() {
+    var api = 'https://api.lyft.com/v1/eta';
+    var params = 'lat='+lat+'&lng='+lng;
+    var url = api+'?'+params;
+
+    fetchJson(url, function(json){
+      var results = json.eta_estimates;
+
+      var text = 'ETA for: ';
+
+      results.forEach(function(d){ 
+        text += d.display_name + ' = ' + ~~d.eta_seconds/60 + ' min. ';
+      });
+      publishLyftStatus(text);
+    });
+  }
+
+  function publishLyftStatus(text, image) {
     pubnub.publish({
       channel: channel,
       message: {
-        userid: user.id,
-        text: 'Nearby drivers...',
-        map: data
+        userid: 'Lyft Bot',
+        text: text,
+        image: image
       }
     });
   }
